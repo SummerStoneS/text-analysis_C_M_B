@@ -5,42 +5,42 @@ import nltk
 import jieba
 from wordcloud import WordCloud,STOPWORDS,ImageColorGenerator
 from PIL import Image, ImageDraw, ImageFont
-
-
 import matplotlib.pyplot as plt
 
 
-with open('./comments_data/comments2017.txt', 'r', encoding='gbk') as f:
-    a = f.read()
-
-comments_list = re.split(r'\d{4}-\d{1,2}-\d{1,2} \d{2}:\d{2}.+?\n', a)[:-1]
-time_list = re.findall(r'\d{4}-\d{1,2}-\d{1,2} \d{2}:\d{2}.+?\n', a)
-time_list = [re.findall(r'\d{4}-\d{1,2}-\d{1,2}', time)[0] for time in time_list]
-comment_2017 = pd.DataFrame([time_list, comments_list]).T
-comment_2017.columns = ['date', 'comment']
-
-# with open('./comments_data/comments2018.txt', 'r', encoding='gbk') as f:
-#     a = f.read()
-# comments_list = re.split(r'\d{1,2}月\d{1,2}日\s*\d{2}:\d{2}.+?\n', a)[:-1]
-# time_list = re.findall(r'\d{1,2}月\d{1,2}日\s*\d{2}:\d{2}.+?\n', a)
-# time_list = [re.findall(r'\d{1,2}月\d{1,2}日', time)[0] for time in time_list]
-# comment_2017 = pd.DataFrame([time, comments_list]).T
-# comment_2017.columns = ['date', 'comment']
-
-
-def screen_credit_card_comment():
+def txt_to_excel():
     """
-    :return:  招商银行信用卡的评论
+    :return: 微博原始爬下来的东西在txt里，转成dataframe
     """
+    with open('./comments_data/comments2017.txt', 'r', encoding='gbk') as f:
+        a = f.read()
+
+    comments_list = re.split(r'\d{4}-\d{1,2}-\d{1,2} \d{2}:\d{2}.+?\n', a)[:-1]
+    time_list = re.findall(r'\d{4}-\d{1,2}-\d{1,2} \d{2}:\d{2}.+?\n', a)
+    time_list = [re.findall(r'\d{4}-\d{1,2}-\d{1,2}', time)[0] for time in time_list]
+    comment_2017 = pd.DataFrame([time_list, comments_list]).T
+    comment_2017.columns = ['date', 'comment']
+    comment_2017.to_excel('comments2017.xlsx')
+
+
+def screen_credit_card_comment(datafile):
+    """
+    :param datafile: weibo评论 dataframe
+    :return: 招商银行信用卡的评论
+    """
+    comments_list = list(datafile['comment'])
+    time_list = list(datafile['date'])
     credit_time, credit_comment = [], []
     for date, comment in zip(time_list, comments_list):
-        if re.search(r'信用卡', comment):
+        if re.search(r'信用卡', comment) and not re.search(r'招商银行信用卡官方客户端|招商银行信用卡申请.+网页链接|【.*】|发表了博文', comment):
             credit_comment.append(comment)
             credit_time.append(date)
 
     comments = pd.DataFrame([credit_time, credit_comment]).T
     comments.columns = ['date', 'comment']
-    comments.to_excel('2017信用卡weibo.xlsx')
+    comments.to_excel('信用卡weibo.xlsx')
+    return comments
+
 
 
 def words_bag(data):
@@ -87,17 +87,18 @@ def word_cloud():
     my_stopwords = ['展开','全文','微博','c2017','浏览器','新浪','网页','链接','iPhone','网页链接2017','weibo','来自',
                     '展开全文c','网页链接','发表了博文','生女儿的父母更幸福','一项研究显示','生儿子的马上攒钱买房','生儿子的父母',
                     '网友','观念已落伍',"重男轻女","在儿子17到30岁期间","幸福感明显低于生女儿的父母",
-                    "高房价和男性过剩增加娶妻成本降低了父母的幸福感",'生女儿的计划买新车',"就是千古骂名"]
+                    "高房价和男性过剩增加娶妻成本降低了父母的幸福感",'生女儿的计划买新车',"就是千古骂名","招商银行",
+                    "招商银行信用卡"]
 
     backgroud_Image = plt.imread('back.jpg')
     wc = WordCloud(background_color='white',  # 设置背景颜色
                    mask=backgroud_Image,  # 设置遮罩图片,控制的是词云的形状，比如说松鼠形状的词云，云朵形状的等等，图清晰点比较好
-                   max_words=1000,  # 设置最大现实的字数
+                   max_words=1500,  # 设置最大现实的字数
                    stopwords=STOPWORDS.union(set(my_stopwords)),  # 设置停用词
                    font_path='MSYH.TTF',                          # 设置字体格式，如不设置显示不了中文
-                   max_font_size=60,  # 设置字体最大值，会自动根据图片大写调整，不同图的60看起来不一样
-                   min_font_size=2,    # 设的比较大的话，小的就不显示了
-                   # random_state = 30,  # 设置有多少种随机生成状态，即有多少种布局方案,横的竖的分布
+                   max_font_size=40,  # 设置字体最大值，会自动根据图片大写调整，不同图的60看起来不一样
+                   # min_font_size=2,    # 设的比较大的话，小的就不显示了
+                   # random_state = 1800,  # 设置有多少种随机生成状态，即有多少种布局方案,横的竖的分布
                    # scale=20    # 越大计算越慢，图的大小，不如让底图大点清晰点来得快
                    )
     # credit_card = pd.read_excel('2017信用卡weibo.xlsx')
