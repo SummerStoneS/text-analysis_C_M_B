@@ -63,42 +63,94 @@ def word_cloud(data, name):
     plt.show()
 
 
-def LDA_analysis(data,num_topics = 2):
-    stopwords = [line.rstrip() for line in open('./中文停用词库.txt', 'r', encoding='utf-8')]
-    stopwords.extend(["招商银行", "信用卡", "说", "一次", "全文", "展开", "招行", "一个", "工商银行", "银行",
-                      "建设银行", "招商", "建设", "之后", "链接", "网页"])
+class Topic:
+    def __init__(self, data, stopwords, num_topics=3, num_words=5):
+        self.data = data
+        self.num_topics = num_topics
+        self.stopwords = stopwords + ["招商银行", "信用卡", "说", "一次", "全文", "展开", "招行", "一个", "工商银行", "银行",
+                      "建设银行", "招商", "建设", "之后", "链接", "网页"]
+        self.data = self.sentence2word()
+        self.dictionary = corpora.Dictionary(list(self.data["wordcut"]))  # 词典，key是词的id,value是词
+        self.corpus = [self.dictionary.doc2bow(i) for i in self.data["wordcut"]]
+        self.num_words = num_words
 
-    def wordcut(line):
+    def wordcut(self,line):
         """
         :param line: 一条微博
         :return: 去除非中文并分词
         """
         wordlist = [word for word in list(jieba.cut(re.compile('[^\u4E00-\u9FD5]+').sub('', line)))
-                    if word not in stopwords and len(word) > 1]
+                if word not in self.stopwords and len(word) > 1]
         return wordlist
-    data['wordcut'] = data["comment"].apply(wordcut)
 
-    dictionary = corpora.Dictionary(list(data["wordcut"]))
-    corpus = [dictionary.doc2bow(i) for i in data["wordcut"]]
-    lda = models.LdaModel(corpus, num_topics=num_topics, id2word=dictionary)
-    topic_list = []
-    for i in range(num_topics):
-        lda.print_topic(i)
-        topic_list.append(lda.print_topic(i))
-    return topic_list
+    def sentence2word(self):
+        self.data['wordcut'] = self.data["comment"].apply(self.wordcut)
+        return self.data
+
+    def tfidf_corpus(self):
+        """
+        :return: 每一个文档的feature是词语的tf-idf
+        """
+        corpus = models.TfidfModel(self.corpus)[self.corpus]  # [[（词id，词tf-idf),（词id，词tf-idf)...],[（词id，词tf-idf),...]]
+        return corpus
+
+    def lda(self):
+        lda = models.LdaModel(self.corpus, num_topics=self.num_topics, id2word=self.dictionary)
+        print("基于词频作feature的lda模型结果:\n{}".format(lda.print_topics(num_topics=3, num_words=self.num_words)))
+        # topic_list = []
+        # for i in range(self.num_topics):
+        #     lda.print_topic(i)
+        #     topic_list.append(lda.print_topic(i))
+
+        # for i, doc in enumerate(lda[self.corpus]):
+        #     if i < 5:
+        #         print(doc)              # 可以看到每一个文档属于每个主题的概率
+
+    def lda_tf_idf(self):
+        """
+        :return: tf_idf作为feature建lda模型
+        """
+        lda_tf_idf = models.LdaModel(self.tfidf_corpus(), num_topics=self.num_topics, id2word=self.dictionary)
+        print("基于tf-idf作feature的lda模型结果:\n{}".format(lda_tf_idf.print_topics(num_topics=3, num_words=self.num_words)))
+        doc_topic = [a for a in lda_tf_idf[self.tfidf_corpus()]]      # 每个文档的主题概率分布
+
+    def lsi(self):
+        lsi = models.lsimodel.LsiModel(corpus=self.corpus, id2word=self.dictionary, num_topics=self.num_topics)    # 初始化一个LSI转换
+        doc_topic = lsi[self.corpus]
+        print("基于词频作feature的lsi模型结果:\n{}".format(lsi.print_topics(num_topics=3, num_words=self.num_words)))
+
+    def lsi_tf_idf(self):
+        """
+        :return:这个效果要好一点
+        """
+        lsi = models.lsimodel.LsiModel(corpus=self.tfidf_corpus(), id2word=self.dictionary, num_topics=self.num_topics)    # 初始化一个LSI转换
+        doc_topic = lsi[self.tfidf_corpus()]                # 对其在向量空间进行转换
+        print("基于tf-idf作feature的lsi模型结果:\n{}".format(lsi.print_topics(num_topics=3, num_words=self.num_words)))
 
 
 if __name__ == '__main__':
+    stopwords = [line.rstrip() for line in open('./中文停用词库.txt', 'r', encoding='utf-8')]
     comment = pd.read_excel("comments.xlsx")
     credit_data = screen_credit_card_comment(comment)  # 含信用卡关键字的非官方微博
     positive = credit_data[credit_data["category"].isin(["moderate positive", "very positive"])]
     negative = credit_data[credit_data["category"].isin(["moderate negative", "very negative"])]
-    word_cloud(positive, "positive")
-    word_cloud(negative, "negative")
+    # word_cloud(positive, "positive")
+    # word_cloud(negative, "negative")
+    #
+    # cluster_result = pd.read_excel("cluster_result.xlsx")
+    # cluster_7 = cluster_result[cluster_result['cluster'] == 7]
 
-    cluster_result = pd.read_excel("cluster_result.xlsx")
-    cluster_7 = cluster_result[cluster_result['cluster'] == 7]
-    LDA_analysis(cluster_7, 1)
+    topic_analysis = Topic(negative, stopwords)
+    topic_analysis.lda()
+    topic_analysis.lda_tf_idf()
+    topic_analysis.lsi()
+    topic_analysis.lsi_tf_idf()
+
+    topic_analysis = Topic(positive, stopwords)
+    topic_analysis.lda()
+    topic_analysis.lda_tf_idf()
+    topic_analysis.lsi()
+    topic_analysis.lsi_tf_idf()
 
 
 
